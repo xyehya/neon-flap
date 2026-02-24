@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Flap</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050510;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Orbitron', sans-serif;
+            color: white;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.2);
+            border-radius: 8px;
+            overflow: hidden;
+            width: 100%;
+            max-width: 480px;
+            aspect-ratio: 3/4;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
+            touch-action: manipulation;
+        }
+
+        .ui-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            transition: opacity 0.3s ease;
+        }
+
+        .hidden { display: none !important; }
+
+        /* ---- Screens ---- */
+        #name-screen {
+            background: rgba(0, 0, 0, 0.88);
+            backdrop-filter: blur(8px);
+            z-index: 40;
+        }
+        #start-screen {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+            z-index: 20;
+        }
+        #game-over-screen {
+            background: rgba(0, 0, 0, 0.78);
+            backdrop-filter: blur(8px);
+            z-index: 30;
+        }
+        #leaderboard-screen {
+            background: rgba(0, 0, 0, 0.92);
+            backdrop-filter: blur(12px);
+            z-index: 50;
+        }
+
+        /* ---- Typography ---- */
+        h1 {
+            font-size: clamp(2rem, 8vw, 48px);
+            margin: 0 0 16px 0;
+            color: #00f3ff;
+            text-shadow: 0 0 20px #00f3ff, 4px 4px 0px #bc13fe;
+            font-weight: 900;
+            letter-spacing: 2px;
+        }
+        p {
+            font-size: clamp(0.85rem, 3vw, 16px);
+            color: #e0e0e0;
+            margin: 0 0 16px 0;
+            text-shadow: 1px 1px 2px black;
+            max-width: 85%;
+            line-height: 1.4;
+        }
+
+        /* ---- Buttons ---- */
+        .btn {
+            pointer-events: auto;
+            padding: 13px 34px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(1rem, 3.5vw, 20px);
+            font-weight: 700;
+            color: white;
+            background: linear-gradient(45deg, #bc13fe, #00f3ff);
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+            transition: transform 0.1s, box-shadow 0.1s;
+            text-transform: uppercase;
+            margin: 4px;
+        }
+        .btn:hover  { transform: scale(1.05); box-shadow: 0 0 40px rgba(188, 19, 254, 0.8); }
+        .btn:active { transform: scale(0.95); }
+
+        .btn-outline {
+            font-size: clamp(0.75rem, 2.5vw, 14px);
+            padding: 9px 22px;
+            background: transparent;
+            border: 2px solid rgba(0, 243, 255, 0.5);
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.15);
+            color: #00f3ff;
+        }
+        .btn-outline:hover {
+            background: rgba(0, 243, 255, 0.1);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+        }
+        .btn-ghost {
+            font-size: clamp(0.65rem, 2vw, 12px);
+            padding: 7px 16px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: none;
+            color: rgba(255, 255, 255, 0.45);
+        }
+        .btn-ghost:hover { color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.4); box-shadow: none; }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 4px 0;
+        }
+
+        /* ---- Score HUD ---- */
+        #score-hud {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: clamp(3rem, 10vw, 60px);
+            font-weight: 900;
+            z-index: 10;
+            pointer-events: none;
+            text-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+        }
+
+        /* ---- Glow animation ---- */
+        .glow-text {
+            animation: glow 2s infinite alternate;
+        }
+        @keyframes glow {
+            from { text-shadow: 0 0 10px #fff, 0 0 20px #00f3ff, 0 0 30px #00f3ff; }
+            to   { text-shadow: 0 0 20px #fff, 0 0 30px #bc13fe, 0 0 40px #bc13fe; }
+        }
+
+        /* ---- New Best message ---- */
+        .new-best-text {
+            color: #ffd700;
+            font-size: clamp(0.85rem, 2.8vw, 15px);
+            font-weight: 700;
+            text-shadow: 0 0 12px #ffd700;
+            letter-spacing: 1px;
+            animation: bestPulse 0.6s infinite alternate;
+            margin-bottom: 6px;
+        }
+        @keyframes bestPulse {
+            from { opacity: 0.8; transform: scale(1); }
+            to   { opacity: 1;   transform: scale(1.06); }
+        }
+
+        /* ---- Name input ---- */
+        .name-input {
+            pointer-events: auto;
+            width: 68%;
+            max-width: 260px;
+            padding: 12px 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(0.9rem, 3vw, 16px);
+            color: #00f3ff;
+            background: rgba(0, 243, 255, 0.06);
+            border: 2px solid rgba(0, 243, 255, 0.5);
+            border-radius: 50px;
+            outline: none;
+            text-align: center;
+            box-shadow: 0 0 12px rgba(0, 243, 255, 0.2);
+            margin-bottom: 16px;
+            box-sizing: border-box;
+        }
+        .name-input::placeholder { color: rgba(0, 243, 255, 0.35); }
+        .name-input:focus {
+            border-color: #bc13fe;
+            box-shadow: 0 0 20px rgba(188, 19, 254, 0.45);
+        }
+        .name-input.error {
+            border-color: #ff2a2a;
+            box-shadow: 0 0 12px rgba(255, 42, 42, 0.4);
+        }
+        .name-error-msg {
+            font-size: clamp(0.65rem, 2vw, 12px);
+            color: #ff2a2a;
+            margin: -10px 0 10px;
+            min-height: 16px;
+        }
+
+        /* ---- Leaderboard ---- */
+        .leaderboard-box {
+            pointer-events: auto;
+            width: 88%;
+            max-width: 360px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(0, 243, 255, 0.18);
+            border-radius: 16px;
+            padding: 18px 16px 16px;
+            box-sizing: border-box;
+            max-height: 85vh;
+        }
+        .lb-title {
+            font-size: clamp(1.3rem, 5.5vw, 28px);
+            color: #00f3ff;
+            text-shadow: 0 0 14px #00f3ff, 3px 3px 0 #bc13fe;
+            margin: 0 0 2px;
+            letter-spacing: 2px;
+            font-weight: 900;
+        }
+        .lb-subtitle {
+            font-size: clamp(0.6rem, 1.8vw, 11px);
+            color: rgba(255, 255, 255, 0.35);
+            margin: 0 0 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        #leaderboard-content {
+            width: 100%;
+            overflow-y: auto;
+            max-height: 46vh;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 243, 255, 0.4) transparent;
+            margin-bottom: 12px;
+        }
+        #leaderboard-content::-webkit-scrollbar { width: 4px; }
+        #leaderboard-content::-webkit-scrollbar-track { background: transparent; }
+        #leaderboard-content::-webkit-scrollbar-thumb { background: rgba(0, 243, 255, 0.35); border-radius: 2px; }
+
+        .lb-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            margin-bottom: 4px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 8px;
+            border-left: 3px solid transparent;
+        }
+        .lb-row.is-me {
+            background: rgba(0, 243, 255, 0.09);
+            border-left-color: #00f3ff;
+        }
+        .lb-rank {
+            width: 28px;
+            text-align: center;
+            font-size: clamp(0.7rem, 2.2vw, 13px);
+            color: #777;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .lb-row:nth-child(1) .lb-rank { color: #ffd700; font-size: clamp(0.85rem, 2.5vw, 15px); }
+        .lb-row:nth-child(2) .lb-rank { color: #c0c0c0; font-size: clamp(0.8rem, 2.4vw, 14px); }
+        .lb-row:nth-child(3) .lb-rank { color: #cd7f32; }
+        .lb-name {
+            flex: 1;
+            font-size: clamp(0.7rem, 2.2vw, 13px);
+            color: #ddd;
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .lb-name .you-tag {
+            color: #00f3ff;
+            font-size: 0.85em;
+            margin-left: 4px;
+        }
+        .lb-score {
+            font-size: clamp(0.7rem, 2.2vw, 13px);
+            color: #00f3ff;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .lb-status {
+            text-align: center;
+            font-size: clamp(0.7rem, 2.2vw, 13px);
+            padding: 18px 0;
+        }
+        .lb-status.loading { color: rgba(0, 243, 255, 0.5); }
+        .lb-status.empty   { color: rgba(255, 255, 255, 0.3); }
+        .lb-status.error   { color: #ff5555; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="480" height="640"></canvas>
+    <div id="score-hud" class="hidden">0</div>
+
+    <!-- 1. Name Entry Screen (shown first if no name stored) -->
+    <div id="name-screen" class="ui-layer">
+        <h1 class="glow-text">NEON FLAP</h1>
+        <p>Enter your name to join the leaderboard</p>
+        <input type="text" id="player-name-input" class="name-input"
+               maxlength="20" placeholder="Your name..."
+               autocomplete="off" spellcheck="false" />
+        <p id="name-error-msg" class="name-error-msg">&nbsp;</p>
+        <button class="btn" id="name-submit-btn">Let's Fly</button>
+    </div>
+
+    <!-- 2. Start Screen -->
+    <div id="start-screen" class="ui-layer hidden">
+        <h1 class="glow-text">NEON FLAP</h1>
+        <p style="margin-bottom:4px;">Playing as
+            <span id="player-name-display" style="color:#00f3ff;font-weight:700;"></span>
+        </p>
+        <p style="margin-bottom:18px;">Click, Tap, or Spacebar to Fly</p>
+        <button class="btn" id="start-btn">Initialize</button>
+        <div class="btn-row" style="margin-top:10px;">
+            <button class="btn btn-outline" id="leaderboard-btn-start">Leaderboard</button>
+            <button class="btn btn-ghost" id="change-name-btn-start">Change Name</button>
+        </div>
+    </div>
+
+    <!-- 3. Game Over Screen -->
+    <div id="game-over-screen" class="ui-layer hidden">
+        <h1 style="color:#ff2a2a;text-shadow:0 0 20px #ff2a2a;">SYSTEM FAILURE</h1>
+        <p id="new-best-msg" class="new-best-text hidden">★ NEW PERSONAL BEST! ★</p>
+        <p>Score: <span id="final-score">0</span> &nbsp;|&nbsp; Best: <span id="best-score">0</span></p>
+        <div class="btn-row">
+            <button class="btn" id="restart-btn">Reboot</button>
+            <button class="btn btn-outline" id="leaderboard-btn-gameover">Leaderboard</button>
+        </div>
+        <div class="btn-row" style="margin-top:6px;">
+            <button class="btn btn-ghost" id="reset-score-btn">Reset Best</button>
+            <button class="btn btn-ghost" id="change-name-btn-gameover">Change Name</button>
+        </div>
+    </div>
+
+    <!-- 4. Leaderboard Overlay -->
+    <div id="leaderboard-screen" class="ui-layer hidden">
+        <div class="leaderboard-box">
+            <h2 class="lb-title">LEADERBOARD</h2>
+            <p class="lb-subtitle">Personal Bests</p>
+            <div id="leaderboard-content">
+                <div class="lb-status loading">Loading...</div>
+            </div>
+            <button class="btn" id="leaderboard-close-btn">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // =============================================
+    // SETUP
+    // =============================================
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let score = 0;
+    let highScore = parseInt(localStorage.getItem('neonFlapHighScore') || '0');
+    let playerName = localStorage.getItem('neonFlapPlayerName') || '';
+    let gameState = 'START'; // START, PLAYING, GAMEOVER
+    let particles = [];
+    let lastTime = 0;
+
+    const GRAVITY = 1500;
+    const JUMP_STRENGTH = -550;
+    const BASE_GAME_SPEED = 200;
+    let currentGameSpeed = BASE_GAME_SPEED;
+    const FLOOR_HEIGHT = 50;
+    const PIPE_WIDTH = 60;
+    const PIPE_GAP = 180;
+    const PIPE_SPAWN_TIME = 1900;
+    let timeSinceLastPipe = 0;
+
+    // =============================================
+    // BACKGROUND
+    // =============================================
+    const background = {
+        cloudsX: 0, cityX: 0,
+
+        draw(deltaTimeMs) {
+            const cloudSpeed = 50 * (deltaTimeMs / 1000);
+            this.cloudsX = (this.cloudsX - cloudSpeed) % canvas.width;
+            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            for (let i = 0; i < canvas.width / 100 + 2; i++) {
+                let x = this.cloudsX + i * 150;
+                if (x < -100) x += canvas.width + 200;
+                this.drawCloud(x, 50 + (i % 3) * 40);
+            }
+            const citySpeed = 10 * (deltaTimeMs / 1000);
+            this.cityX = (this.cityX - citySpeed) % canvas.width;
+            ctx.fillStyle = '#1a1a2e';
+            for (let i = 0; i < canvas.width / 40 + 2; i++) {
+                const h = 50 + Math.sin(i * 1.32) * 30;
+                ctx.fillRect(this.cityX + i * 50, canvas.height - FLOOR_HEIGHT - h, 50, h);
+                ctx.fillStyle = (i % 2 === 0) ? '#232342' : '#151525';
+                for (let w = 10; w < h; w += 15) {
+                    ctx.fillRect(this.cityX + i * 50 + 10, canvas.height - FLOOR_HEIGHT - h + w, 10, 5);
+                }
+                ctx.fillStyle = '#1a1a2e';
+            }
+        },
+
+        drawCloud(x, y) {
+            ctx.beginPath();
+            ctx.arc(x, y, 30, 0, Math.PI * 2);
+            ctx.arc(x + 25, y - 10, 35, 0, Math.PI * 2);
+            ctx.arc(x + 50, y, 30, 0, Math.PI * 2);
+            ctx.fill();
+        },
+
+        drawGrid(deltaTimeMs) {
+            const timeOffset = (Date.now() * 0.2) % 40;
+            ctx.strokeStyle = 'rgba(188,19,254,0.3)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height - FLOOR_HEIGHT);
+            ctx.lineTo(canvas.width, canvas.height - FLOOR_HEIGHT);
+            for (let i = 0; i < canvas.width + 50; i += 40) {
+                const x = i - timeOffset;
+                ctx.moveTo(x, canvas.height - FLOOR_HEIGHT);
+                ctx.lineTo(x - 100, canvas.height);
+            }
+            ctx.stroke();
+        }
+    };
+
+    // =============================================
+    // BIRD
+    // =============================================
+    const bird = {
+        x: 80, y: 150, velocity: 0, radius: 18, rotation: 0, originalY: 150,
+
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            this.rotation = Math.min(Math.PI / 3, Math.max(-Math.PI / 3, this.velocity * 0.05));
+            ctx.rotate(this.rotation);
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#00f3ff';
+            const gradient = ctx.createRadialGradient(0, -5, 2, 0, 0, this.radius);
+            gradient.addColorStop(0, '#00f3ff');
+            gradient.addColorStop(1, '#0077ff');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(8, -6, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.beginPath(); ctx.arc(10, -6, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ff9f43';
+            ctx.beginPath();
+            ctx.moveTo(12, 2); ctx.lineTo(24, 6); ctx.lineTo(12, 10); ctx.fill();
+            ctx.fillStyle = '#00d2ff';
+            ctx.beginPath();
+            const wingY = Math.sin(Date.now() / 50) * 5;
+            ctx.ellipse(-5, wingY, 10, 6, 0.2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.beginPath();
+            ctx.ellipse(-5, wingY - 2, 5, 3, 0.2, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        },
+
+        update(dt) {
+            this.velocity += GRAVITY * dt;
+            this.y += this.velocity * dt;
+            if (this.y + this.radius >= canvas.height - FLOOR_HEIGHT) {
+                this.y = canvas.height - FLOOR_HEIGHT - this.radius;
+                gameOver();
+            }
+            if (this.y - this.radius <= 0) {
+                this.y = this.radius;
+                gameOver();
+            }
+        },
+
+        flap()  { this.velocity = JUMP_STRENGTH; },
+        reset() { this.y = this.originalY; this.velocity = 0; this.rotation = 0; }
+    };
+
+    // =============================================
+    // PIPES
+    // =============================================
+    const pipes = {
+        items: [],
+
+        reset() { this.items = []; timeSinceLastPipe = 0; },
+
+        update(dt) {
+            const dtMs = dt * 1000;
+            timeSinceLastPipe += dtMs;
+            if (timeSinceLastPipe >= PIPE_SPAWN_TIME) {
+                const minH = 80;
+                const maxTopH = canvas.height - FLOOR_HEIGHT - PIPE_GAP - minH;
+                const topH = Math.floor(Math.random() * (Math.max(minH, maxTopH) - minH + 1) + minH);
+                this.items.push({ x: canvas.width, topHeight: topH, passed: false, width: PIPE_WIDTH });
+                timeSinceLastPipe = 0;
+            }
+            for (let i = 0; i < this.items.length; i++) {
+                const p = this.items[i];
+                p.x -= currentGameSpeed * dt;
+                const bL = bird.x - bird.radius + 6, bR = bird.x + bird.radius - 6;
+                const bT = bird.y - bird.radius + 6, bB = bird.y + bird.radius - 6;
+                const pL = p.x, pR = p.x + p.width;
+                if (bR > pL && bL < pR && bT < p.topHeight)           { gameOver(); return; }
+                if (bR > pL && bL < pR && bB > p.topHeight + PIPE_GAP) { gameOver(); return; }
+                if (p.x + p.width < bird.x && !p.passed) {
+                    score++;
+                    document.getElementById('score-hud').innerText = score;
+                    p.passed = true;
+                    if (score % 5 === 0) currentGameSpeed += 10;
+                }
+                if (p.x + p.width < 0) { this.items.splice(i, 1); i--; }
+            }
+        },
+
+        draw() {
+            for (const p of this.items) {
+                const { x, width: w, topHeight: topH } = p;
+                const bottomY = topH + PIPE_GAP;
+                const g = ctx.createLinearGradient(x, 0, x + w, 0);
+                g.addColorStop(0, '#004a69'); g.addColorStop(0.2, '#0077ff');
+                g.addColorStop(0.5, '#00d2ff'); g.addColorStop(0.8, '#0077ff'); g.addColorStop(1, '#004a69');
+                ctx.fillStyle = g; ctx.strokeStyle = '#002a3d'; ctx.lineWidth = 2;
+                ctx.fillRect(x, 0, w, topH);              ctx.strokeRect(x, 0, w, topH);
+                ctx.fillRect(x - 4, topH - 20, w + 8, 20); ctx.strokeRect(x - 4, topH - 20, w + 8, 20);
+                ctx.fillRect(x, bottomY, w, canvas.height - bottomY - FLOOR_HEIGHT);
+                ctx.strokeRect(x, bottomY, w, canvas.height - bottomY - FLOOR_HEIGHT);
+                ctx.fillRect(x - 4, bottomY, w + 8, 20);   ctx.strokeRect(x - 4, bottomY, w + 8, 20);
+            }
+        }
+    };
+
+    // =============================================
+    // PARTICLES
+    // =============================================
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y;
+            this.size = Math.random() * 5 + 2;
+            this.speedX = (Math.random() - 0.5) * 10;
+            this.speedY = (Math.random() - 0.5) * 10;
+            this.color = color; this.life = 1.0; this.decay = 0.02;
+        }
+        update(dt) {
+            const ts = dt * 60;
+            this.x += this.speedX * ts; this.y += this.speedY * ts;
+            this.life -= this.decay * ts; this.size *= 0.95;
+        }
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.globalAlpha = Math.max(0, this.life);
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+    }
+    function createExplosion(x, y) {
+        for (let i = 0; i < 30; i++) {
+            particles.push(new Particle(x, y, '#00f3ff'));
+            particles.push(new Particle(x, y, '#ff0055'));
+            particles.push(new Particle(x, y, '#ffffff'));
+        }
+    }
+
+    // =============================================
+    // LEADERBOARD API
+    // =============================================
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    async function submitScore(name, score) {
+        try {
+            const res = await fetch('/api/scores', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, score })
+            });
+            const data = await res.json();
+            return data.success === true;
+        } catch (e) {
+            console.warn('Score submit failed (offline?):', e.message);
+            return false;
+        }
+    }
+
+    async function showLeaderboard() {
+        const screen  = document.getElementById('leaderboard-screen');
+        const content = document.getElementById('leaderboard-content');
+        screen.classList.remove('hidden');
+        content.innerHTML = '<div class="lb-status loading">Loading...</div>';
+
+        try {
+            const res  = await fetch('/api/leaderboard');
+            const data = await res.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                content.innerHTML = '<div class="lb-status empty">No scores yet — be the first!</div>';
+                return;
+            }
+            const medals = ['🥇', '🥈', '🥉'];
+            const myNameLower = playerName.toLowerCase();
+            content.innerHTML = data.map((row, i) => {
+                const isMe = row.name.toLowerCase() === myNameLower;
+                const rank = medals[i] ?? `#${i + 1}`;
+                return `<div class="lb-row${isMe ? ' is-me' : ''}">
+                    <span class="lb-rank">${rank}</span>
+                    <span class="lb-name">${escapeHtml(row.name)}${isMe ? '<span class="you-tag">(you)</span>' : ''}</span>
+                    <span class="lb-score">${row.best_score}</span>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            content.innerHTML = '<div class="lb-status error">Could not load — check connection.</div>';
+        }
+    }
+
+    // =============================================
+    // NAME SCREEN
+    // =============================================
+    function showNameScreen() {
+        document.getElementById('name-screen').classList.remove('hidden');
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('game-over-screen').classList.add('hidden');
+        document.getElementById('score-hud').classList.add('hidden');
+        gameState = 'START';
+        setTimeout(() => document.getElementById('player-name-input').focus(), 50);
+    }
+
+    function submitName() {
+        const input    = document.getElementById('player-name-input');
+        const errorMsg = document.getElementById('name-error-msg');
+        const raw      = input.value.trim();
+
+        if (raw.length < 1) {
+            input.classList.add('error');
+            errorMsg.textContent = 'Please enter a name!';
+            input.focus();
+            return;
+        }
+
+        playerName = raw.slice(0, 20);
+        localStorage.setItem('neonFlapPlayerName', playerName);
+        document.getElementById('player-name-display').textContent = playerName;
+        input.classList.remove('error');
+        errorMsg.textContent = '\u00a0';
+
+        document.getElementById('name-screen').classList.add('hidden');
+        document.getElementById('start-screen').classList.remove('hidden');
+    }
+
+    // =============================================
+    // GAME LOGIC
+    // =============================================
+    function init() {
+        bird.reset();
+        pipes.reset();
+        score = 0;
+        currentGameSpeed = BASE_GAME_SPEED;
+        particles = [];
+        timeSinceLastPipe = 0;
+
+        document.getElementById('score-hud').innerText = '0';
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('game-over-screen').classList.add('hidden');
+        document.getElementById('leaderboard-screen').classList.add('hidden');
+        document.getElementById('score-hud').classList.remove('hidden');
+
+        gameState = 'PLAYING';
+        lastTime = performance.now();
+        requestAnimationFrame(loop);
+    }
+
+    function gameOver() {
+        gameState = 'GAMEOVER';
+        createExplosion(bird.x, bird.y);
+
+        const isNewBest = score > highScore;
+        if (isNewBest) {
+            highScore = score;
+            localStorage.setItem('neonFlapHighScore', highScore);
+            if (playerName) submitScore(playerName, score);
+        }
+
+        document.getElementById('final-score').innerText = score;
+        document.getElementById('best-score').innerText = highScore;
+        document.getElementById('new-best-msg').classList.toggle('hidden', !isNewBest);
+        document.getElementById('game-over-screen').classList.remove('hidden');
+        document.getElementById('score-hud').classList.add('hidden');
+    }
+
+    // =============================================
+    // MAIN LOOP
+    // =============================================
+    function loop(timestamp) {
+        if (!lastTime) lastTime = timestamp;
+        let dt = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+        if (dt > 0.2) dt = 0.2;
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update(dt);
+            particles[i].draw();
+            if (particles[i].life <= 0) particles.splice(i, 1);
+        }
+
+        if (gameState === 'PLAYING') {
+            bird.update(dt);
+            pipes.update(dt);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            background.draw(dt * 1000);
+            background.drawGrid(dt * 1000);
+            pipes.draw();
+            bird.draw();
+            requestAnimationFrame(loop);
+        } else if (gameState === 'GAMEOVER') {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            background.draw(dt * 1000);
+            background.drawGrid(dt * 1000);
+            pipes.draw();
+            bird.draw();
+            if (particles.length > 0) requestAnimationFrame(loop);
+        }
+    }
+
+    // =============================================
+    // INPUT
+    // =============================================
+    function handleInput(e) {
+        if (e.type === 'keydown' && e.code !== 'Space') return;
+        if (e.type === 'keydown') e.preventDefault();
+        if (gameState === 'PLAYING') bird.flap();
+    }
+    window.addEventListener('keydown', handleInput);
+
+    let isTouchDevice = false;
+    canvas.addEventListener('touchstart', (e) => {
+        isTouchDevice = true;
+        e.preventDefault();
+        if (gameState === 'PLAYING') bird.flap();
+    }, { passive: false });
+    canvas.addEventListener('mousedown', (e) => {
+        if (isTouchDevice) return;
+        e.preventDefault();
+        if (gameState === 'PLAYING') bird.flap();
+    });
+
+    // Name screen
+    document.getElementById('name-submit-btn').addEventListener('click', submitName);
+    document.getElementById('player-name-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') submitName();
+        document.getElementById('player-name-input').classList.remove('error');
+        document.getElementById('name-error-msg').textContent = '\u00a0';
+    });
+
+    // Start screen
+    document.getElementById('start-btn').addEventListener('click', (e) => { e.stopPropagation(); init(); });
+    document.getElementById('leaderboard-btn-start').addEventListener('click', (e) => { e.stopPropagation(); showLeaderboard(); });
+    document.getElementById('change-name-btn-start').addEventListener('click', (e) => { e.stopPropagation(); showNameScreen(); });
+
+    // Game over screen
+    document.getElementById('restart-btn').addEventListener('click', (e) => { e.stopPropagation(); init(); });
+    document.getElementById('leaderboard-btn-gameover').addEventListener('click', (e) => { e.stopPropagation(); showLeaderboard(); });
+    document.getElementById('change-name-btn-gameover').addEventListener('click', (e) => { e.stopPropagation(); showNameScreen(); });
+    document.getElementById('reset-score-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm('Reset your local high score?')) {
+            highScore = 0;
+            localStorage.setItem('neonFlapHighScore', '0');
+            document.getElementById('best-score').innerText = '0';
+        }
+    });
+
+    // Leaderboard close
+    document.getElementById('leaderboard-close-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('leaderboard-screen').classList.add('hidden');
+    });
+
+    // =============================================
+    // BOOT: decide which screen to show first
+    // =============================================
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    background.draw(0);
+    background.drawGrid(0);
+    bird.y = canvas.height / 2;
+    bird.draw();
+
+    if (playerName) {
+        document.getElementById('player-name-display').textContent = playerName;
+        document.getElementById('name-screen').classList.add('hidden');
+        document.getElementById('start-screen').classList.remove('hidden');
+    } else {
+        // name-screen is shown by default, start-screen has .hidden
+        setTimeout(() => document.getElementById('player-name-input').focus(), 100);
+    }
+</script>
+</body>
+</html>
