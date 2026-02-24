@@ -394,7 +394,20 @@
     const PIPE_WIDTH = 60;
     const PIPE_GAP = 180;
     const PIPE_SPAWN_TIME = 1900;
+    const GAMEOVER_REVEAL_DELAY_MS = 900;
     let timeSinceLastPipe = 0;
+    let gameOverRevealTimer = null;
+
+    const birdSprite = {
+        happy: new Image(),
+        sad: new Image(),
+        happyLoaded: false,
+        sadLoaded: false
+    };
+    birdSprite.happy.onload = () => { birdSprite.happyLoaded = true; };
+    birdSprite.sad.onload = () => { birdSprite.sadLoaded = true; };
+    birdSprite.happy.src = 'happy-face.png';
+    birdSprite.sad.src = 'sad-face.png';
 
     // =============================================
     // BACKGROUND
@@ -460,30 +473,35 @@
             ctx.translate(this.x, this.y);
             this.rotation = Math.min(Math.PI / 3, Math.max(-Math.PI / 3, this.velocity * 0.05));
             ctx.rotate(this.rotation);
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#00f3ff';
-            const gradient = ctx.createRadialGradient(0, -5, 2, 0, 0, this.radius);
-            gradient.addColorStop(0, '#00f3ff');
-            gradient.addColorStop(1, '#0077ff');
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = 'white';
-            ctx.shadowBlur = 0;
-            ctx.beginPath(); ctx.arc(8, -6, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = 'black';
-            ctx.beginPath(); ctx.arc(10, -6, 2, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = '#ff9f43';
-            ctx.beginPath();
-            ctx.moveTo(12, 2); ctx.lineTo(24, 6); ctx.lineTo(12, 10); ctx.fill();
-            ctx.fillStyle = '#00d2ff';
-            ctx.beginPath();
-            const wingY = Math.sin(Date.now() / 50) * 5;
-            ctx.ellipse(-5, wingY, 10, 6, 0.2, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.beginPath();
-            ctx.ellipse(-5, wingY - 2, 5, 3, 0.2, 0, Math.PI * 2); ctx.fill();
+
+            const isSad = gameState === 'GAMEOVER';
+            const sprite = isSad ? birdSprite.sad : birdSprite.happy;
+            const spriteLoaded = isSad ? birdSprite.sadLoaded : birdSprite.happyLoaded;
+            if (spriteLoaded) {
+                const isSad = gameState === 'GAMEOVER';
+                const sw = sprite.naturalWidth;
+                const sh = sprite.naturalHeight;
+                const drawW = this.radius * 4.25;
+                const drawH = drawW * (sh / sw);
+
+                ctx.shadowBlur = 16;
+                ctx.shadowColor = isSad ? '#ff2a2a' : '#00f3ff';
+                ctx.drawImage(
+                    sprite,
+                    0, 0, sw, sh,
+                    -drawW / 2, -drawH / 2, drawW, drawH
+                );
+            } else {
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#00f3ff';
+                const gradient = ctx.createRadialGradient(0, -5, 2, 0, 0, this.radius);
+                gradient.addColorStop(0, '#00f3ff');
+                gradient.addColorStop(1, '#0077ff');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
             ctx.restore();
         },
 
@@ -681,6 +699,10 @@
     // GAME LOGIC
     // =============================================
     function init() {
+        if (gameOverRevealTimer) {
+            clearTimeout(gameOverRevealTimer);
+            gameOverRevealTimer = null;
+        }
         bird.reset();
         pipes.reset();
         score = 0;
@@ -713,8 +735,13 @@
         document.getElementById('final-score').innerText = score;
         document.getElementById('best-score').innerText = highScore;
         document.getElementById('new-best-msg').classList.toggle('hidden', !isNewBest);
-        document.getElementById('game-over-screen').classList.remove('hidden');
         document.getElementById('score-hud').classList.add('hidden');
+
+        if (gameOverRevealTimer) clearTimeout(gameOverRevealTimer);
+        gameOverRevealTimer = setTimeout(() => {
+            document.getElementById('game-over-screen').classList.remove('hidden');
+            gameOverRevealTimer = null;
+        }, GAMEOVER_REVEAL_DELAY_MS);
     }
 
     // =============================================
