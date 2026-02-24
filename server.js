@@ -5,12 +5,23 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+let pool = null;
+let dbReady = false;
+
+function createPool() {
+  if (!process.env.DATABASE_URL) return null;
+  return new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  });
+}
 
 async function initDB() {
+  pool = createPool();
+  if (!pool) {
+    console.warn('DATABASE_URL not set — leaderboard unavailable until it is configured.');
+    return;
+  }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS scores (
       id SERIAL PRIMARY KEY,
@@ -19,6 +30,7 @@ async function initDB() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  dbReady = true;
   console.log('Database ready');
 }
 
@@ -27,6 +39,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // GET /api/leaderboard — all personal bests, sorted
 app.get('/api/leaderboard', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Leaderboard not available yet' });
   try {
     const result = await pool.query(
       'SELECT name, best_score FROM scores ORDER BY best_score DESC LIMIT 100'
@@ -40,6 +53,8 @@ app.get('/api/leaderboard', async (req, res) => {
 
 // POST /api/scores — submit score (only updates if it beats existing best)
 app.post('/api/scores', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Leaderboard not available yet' });
+
   const { name, score } = req.body;
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -74,6 +89,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-initDB()
-  .then(() => app.listen(PORT, () => console.log(`Neon Flap running on port ${PORT}`)))
-  .catch(err => { console.error('DB init failed:', err.message); process.exit(1); });
+// Start HTTP server immediately so Render health checks pass, then init DB
+app.listen(PORT, () => console.log(`Neon Flap running on port ${PORT}`));
+
+initDB().catch(err => console.error('DB init failed:', err.message));
